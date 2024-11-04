@@ -4,27 +4,47 @@ import matplotlib.pyplot as plt
 
 
 def find_fn_max_genetically(optim_fn, fitness_fn, pop_size=10, pcross=0.5, pmut=0.1, ngen=10, interval=(-1, 26)):
+    random.seed()
     gene_length, offset = calc_gene_length(interval)
     pop = generate_pop(pop_size, gene_length, offset, interval)
     avg_fit = []
-    max_fit = []
+    max_fits = []
     min_fit = []
+    best_pop = 0
+    best_gene = 0
+    best_fit = - math.inf
     for gen in range(ngen):
         fits = [fitness_fn(optim_fn, int(gene, 2) + offset, interval) for gene in pop]
-        max_fit.append(max(fits))
+        max_fit = max(fits)
+        max_fits.append(max_fit)
+        if max_fit > best_fit:
+            best_pop = gen
+            best_gene = int(pop[fits.index(max_fit)], 2) + offset
+            best_fit = optim_fn(best_gene)
         min_fit.append(min(fits))
         fits_sum = sum(fits)
         avg_fit.append(fits_sum / len(fits))
-        probs = [fit / fits_sum for fit in fits]
+        fits = rescale_fits(fits)
+        probs = [fit / sum(fits) for fit in fits]
+        probs_sorted = probs.copy()
+        probs_sorted.sort(reverse=True)
         new_pop = []
+        #print(probs_sorted)
         while len(new_pop) < pop_size:
-            new_pop.extend([pop[i] for i in range(pop_size) if random.random() < probs[i]])
-            cross_over(new_pop, pcross)
-            mutate(new_pop, pmut, interval, offset)
+            rand = random.random()
+            prob_sum = 0
+            for i in range(pop_size):
+                if rand < probs_sorted[i] + prob_sum:
+                    new_pop.append(pop[probs.index(probs_sorted[i])])
+                    break
+                prob_sum += probs_sorted[i]
+        cross_over(new_pop, pcross)
+        mutate(new_pop, pmut, interval, offset)
         pop = new_pop
-    plot_fn(optim_fn, interval)
-    plot_results(max_fit, min_fit, avg_fit)
 
+    plot_fn(optim_fn, interval)
+    plot_results(max_fits, min_fit, avg_fit)
+    print("Najlepsze rozwiązanie: x =", best_gene, ", wartość funkcji =", best_fit, ", znalezione w pokoleniu nr", best_pop)
 
 def calc_gene_length(interval):
     lower, upper = interval
@@ -36,7 +56,7 @@ def calc_gene_length(interval):
 def generate_pop(pop_size, gene_length, offset, interval):
     pop = []
     while len(pop) < pop_size:
-        gene = ''.join(random.choice('01') for _ in range(gene_length))
+        gene = ''.join(str(random.randint(0, 1)) for _ in range(gene_length))
         if gene_in_interval(gene, interval, offset) and gene not in pop:
             pop.append(gene)
     return pop
@@ -63,6 +83,7 @@ def mutate(pop, pmut, interval, offset):
                 if gene_in_interval(new, interval, offset):
                     pop[i] = new
                     mutated = True
+                    print("mutation")
 
 
 def gene_in_interval(gene, interval, offset):
@@ -74,6 +95,17 @@ def fitness(fn, x, interval):
         return fn(x)
     else:
         return 0
+
+def rescale_fits(fits):
+    fits_copy = fits.copy()
+    print(fits)
+    min_fit = min(fits)
+    const = 1
+    for i in range(len(fits)):
+        fits_copy[i] -= min_fit
+        fits_copy[i] += const
+    print(fits_copy)
+    return fits_copy
 
 
 def plot_results(max_fit, min_fit, avg_fit):
@@ -92,12 +124,11 @@ def plot_fn(fn, interval):
     plt.show()
 
 
-# Ask user for gen algorithm parameters
 opt_fn = input("Wpisz funkcję maksymalizowaną: ")
 pop_size = int(input("Wpisz rozmiar populacji: "))
 pcross = float(input("Wpisz prawdopodobieństwo krzyżowania: "))
 pmut = float(input("Wpisz prawdopodobieństwo mutacji:"))
-ngen = int(input("Wpisz liczbę generacji:"))
+ngen = int(input("Wpisz liczbę pokoleń:"))
 lower = int(input("Wpisz dolną granicę przedziału:"))
 upper = int(input("Wpisz górną granicę przedziału:"))
 interval = (lower, upper)
